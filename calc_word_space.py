@@ -1,3 +1,5 @@
+import os
+
 import gensim
 import numpy
 import nltk
@@ -18,10 +20,15 @@ INPUT_STRING_NORMALIZED = "merry little surge electricity pipe automatic alarm m
                           " eyes again"
 INPUT_STRING_SENT1 = "merry little surge electricity pipe automatic alarm mood organ bed awaken person"
 PHRASES = ["merry little surge electricity", "pipe", "automatic alarm mood organ bed", "awaken person"]
+OUTPUT_FOLDER = "/home/lenovo/dev/DeepReading/analyses/"
+MODEL = "GloVe"
+if MODEL == "GloVe" or MODEL == "Combined":
+    WORD_EMBEDDINGS_PATH = "/home/lenovo/dev/word-embeddings/glove.6B/glove.6B.300d_MOD.txt"
+elif MODEL == "WordNet":
+    WORD_EMBEDDINGS_PATH = "/home/lenovo/dev/word-embeddings/lemma_sense_embeddings/WN30WN30glConOne-C15I7S7N5_200M_syn_and_lemma_WikipediaLemmatized_FILTERED.txt"
+elif MODEL == "SF":
+    WORD_EMBEDDINGS_PATH = "/home/lenovo/dev/DeepReading/sf_vectors.txt"
 
-WORD_EMBEDDINGS_PATH = "/home/lenovo/dev/word-embeddings/glove.6B/glove.6B.300d_MOD.txt"
-# WORD_EMBEDDINGS_PATH = "/home/lenovo/dev/DeepReading/sf_vectors.txt"
-# WORD_EMBEDDINGS_PATH = "/home/lenovo/dev/word-embeddings/lemma_sense_embeddings/WN30WN30glConOne-C15I7S7N5_200M_syn_and_lemma_WikipediaLemmatized_FILTERED.txt"
 wordnet_lexicon = "/home/lenovo/tools/ukb_wsd/lkb_sources/wn30.lex"
 # get the mapping from synset to (first)lemma
 synset2lemma = {}
@@ -36,15 +43,6 @@ with open(wordnet_lexicon, "r") as lexicon:
 STOP_WORDS = nltk.corpus.stopwords.words()
 model = gensim.models.KeyedVectors.load_word2vec_format(WORD_EMBEDDINGS_PATH, binary=False,
                                                                    datatype=numpy.float32)
-data = set(INPUT_STRING_SENT1.split(" "))
-# similar = model.most_similar(positive=data, negative=[], topn=20)
-# words, scores = zip(*similar)
-# similar_filtered = []
-# for i, word in enumerate(words):
-#     if word not in STOP_WORDS:
-#         similar_filtered.append((word, scores[i]))
-# print similar_filtered
-
 
 def tsne_plot(model, words, syn2lemma=None):
     "Creates and TSNE model and plots it"
@@ -77,36 +75,47 @@ def tsne_plot(model, words, syn2lemma=None):
                      va='bottom')
     plt.show()
 
-tsne_plot(model, data)
+# tsne_plot(model, data)
 
-# for word in INPUT_STRING_SENT1.split(" "):
-#     similar = model.most_similar(positive=[word], negative=[], topn=20)
-#     words, scores = zip(*similar)
-#     similar_filtered = []
-#     for i, word in enumerate(words):
-#         if word not in STOP_WORDS:
-#             similar_filtered.append((word, scores[i]))
-#     tsne_plot(model, zip(*similar_filtered)[0], synset2lemma)
-#     print "Similar words to " + word
-#     print similar_filtered
-#     print "***"
-
-words_to_plot = set()
-for phrase in PHRASES:
-    data = phrase.split(" ")
+def get_similar_words(words, num_similar):
+    sim_words = set()
     centroid = None
-    for word in data:
+    for word in words:
         if centroid is None:
             centroid = model[word]
         else:
-            centroid = model[word]
-    centroid /= len(data)
-    similar = model.most_similar(positive=[centroid], negative=[], topn=20)
-    words_to_plot.update(set(similar))
-    words_to_plot.update(data)
-words, scores = zip(*words_to_plot)
-wtp_filtered = []
-for i, word in enumerate(words):
-    if word not in STOP_WORDS:
-        wtp_filtered.append((word, scores[i]))
-tsne_plot(model, zip(*wtp_filtered)[0], synset2lemma)
+            centroid += model[word]
+    centroid /= len(words)
+    similar = model.most_similar(positive=[centroid], negative=[], topn=num_similar)
+    for word in similar:
+        if word in STOP_WORDS:
+            similar.remove(word)
+    sim_words.update(set(similar))
+    # sim_words.update(words)
+    return sim_words
+
+# Get similar words per individual tokens in the sentence
+words = set(INPUT_STRING_SENT1.split(" "))
+for word in words:
+    sim_words = get_similar_words([word], 100)
+    with open(os.path.join(OUTPUT_FOLDER, word + "-" + MODEL + ".txt"),"w") as out:
+        out.write(u"\n".join([sim_word[0] + "\t" + str(sim_word[1]) for sim_word in sim_words]).encode('utf-8').strip())
+
+# Get similar words per phrase in the sentences
+for phrase in PHRASES:
+    sim_words = get_similar_words(phrase.split(" "), 100)
+    with open(os.path.join(OUTPUT_FOLDER, phrase.replace(" ","_") + "-" + MODEL + ".txt"),"w") as out:
+        out.write(u"\n".join([sim_word[0] + "\t" + str(sim_word[1]) for sim_word in sim_words]).encode('utf-8').strip())
+
+# Get centroid for whole sentence and calculate neighbors:
+sim_words = get_similar_words(words, 100)
+with open(os.path.join(OUTPUT_FOLDER, "SENTENCE-" + MODEL + ".txt"), "w") as out:
+    out.write(u"\n".join([sim_word[0] + "\t" + str(sim_word[1]) for sim_word in sim_words]).encode('utf-8').strip())
+
+
+# words, scores = zip(*words_to_plot)
+# wtp_filtered = []
+# for i, word in enumerate(words):
+#     if word not in STOP_WORDS:
+#         wtp_filtered.append((word, scores[i]))
+# tsne_plot(model, zip(*wtp_filtered)[0], synset2lemma)
