@@ -3,7 +3,10 @@ import numpy
 import os
 
 def load_model(path):
-    model = gensim.models.KeyedVectors.load_word2vec_format(path, binary=False, datatype=numpy.float32)
+    if path.endswith(".txt"):
+        model = gensim.models.KeyedVectors.load_word2vec_format(path, binary=False, datatype=numpy.float32)
+    elif path.endswith(".bin"):
+        model = gensim.models.word2vec.Word2Vec.load(path)
     return model
 
 def calc_centroid(words, model):
@@ -23,9 +26,9 @@ def cosine_similarity(a, b):
     return numpy.dot(a, b)/(numpy.linalg.norm(a)* numpy.linalg.norm(b))
 
 if __name__ == "__main__":
-    path_model = "/home/lenovo/dev/DeepReading/sf_vectors.txt"
-    model_name = "SF_Model"
-    output_dir = "/home/lenovo/dev/DeepReading/analyses/"
+    path_model = "/home/lenovo/dev/DeepReading/wikisf_vectors_alpha1.bin"
+    model_name = "WikiSF_Model_alpha1"
+    output_dir = "/home/lenovo/dev/DeepReading/analyses/direct_comparison/"
     # sentence = "merry little surge electricity pipe automatic alarm mood organ bed awaken person"
     phrase1 = ["merry", "little", "surge", "electricity"]
     phrase2 = ["pipe", "automatic", "alarm", "mood", "organ", "bed"]
@@ -44,11 +47,11 @@ if __name__ == "__main__":
     set = (most_sim1, phrase1), (most_sim2, phrase2), (most_sim3, phrase3), (most_sim4, phrase4), (most_sim5, phrase5),\
           (most_sim_sent, sent)
     for data, phrase in set:
-        # with open(os.path.join(output_dir, model_name + "-" + "_".join(phrase)), "w") as out:
-        #     to_write = ""
-        #     for tuple in data:
-        #         to_write += tuple[0] + "\t" + str(tuple[1]) + "\n"
-        #     out.write(to_write.encode('utf-8'))
+        with open(os.path.join(output_dir, model_name + "-" + "_".join(phrase)), "w") as out:
+            to_write = ""
+            for tuple in data:
+                to_write += tuple[0] + "\t" + str(tuple[1]) + "\n"
+            out.write(to_write.encode('utf-8'))
         with open(os.path.join(output_dir, model_name + "-SFTerms"), "w") as out:
             to_write = ""
             for sf_term in sf_terms:
